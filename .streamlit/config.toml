@@ -1,0 +1,6 @@
+[theme]
+primaryColor = "#0097A7"         # teal (buttons, highlights)
+backgroundColor = "#FFFFFF"      # main background
+secondaryBackgroundColor = "#F5FFFF"  # cards / panels
+textColor = "#37474F"            # deep gray
+font = "sans serif"
