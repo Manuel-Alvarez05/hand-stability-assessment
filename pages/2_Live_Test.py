@@ -41,8 +41,13 @@ if not baseline_positions:
 
 # -----------------------------------
 # Initialize / reuse browser webcam stream (prompts for permission)
+# Support restarting via a session-scoped key counter
 # -----------------------------------
-webrtc_ctx = mediapipe_utils.init_webrtc_stream("live-test-webrtc")
+if "webrtc_key_live_counter" not in st.session_state:
+    st.session_state["webrtc_key_live_counter"] = 0
+
+webrtc_key = f"live-test-webrtc-{st.session_state['webrtc_key_live_counter']}"
+webrtc_ctx = mediapipe_utils.init_webrtc_stream(webrtc_key)
 
 # Flag to track whether the test has been run successfully
 if "test_complete" not in st.session_state:
@@ -76,6 +81,16 @@ with col2:
         """
     )
     start_test = st.button("▶ Start Live Test")
+    reset_camera = st.button("🔄 Reset Camera")
+
+    if reset_camera:
+        # Stop current stream and force a fresh component instance on rerun
+        mediapipe_utils.stop_webrtc_stream(webrtc_ctx)
+        st.session_state["webrtc_key_live_counter"] += 1
+        # Clear flags/data so a new run behaves predictably
+        st.session_state["test_complete"] = False
+        st.session_state["raw_time_series"] = {finger: [] for finger in config.FINGERS_TO_TRACK}
+        st.rerun()
 
 
 # -----------------------------------
@@ -154,6 +169,9 @@ if start_test:
     st.caption(
         "You can now proceed to **Step 3: Results & Interpretation** using the navigation menu."
     )
+
+    # Optionally stop the camera to avoid browser/device locking if user navigates away
+    mediapipe_utils.stop_webrtc_stream(webrtc_ctx)
 
 # If the test was already completed earlier and user just visited the page
 if st.session_state.get("test_complete") and not start_test:

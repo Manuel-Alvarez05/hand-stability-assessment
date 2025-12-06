@@ -59,6 +59,15 @@ class MediaPipeHandProcessor(VideoProcessorBase):
         self.latest_frame_rgb: Optional[np.ndarray] = None
         self.latest_fingertips: Optional[Dict[str, Tuple[float, float]]] = None
 
+    def __del__(self) -> None:
+        # Ensure MediaPipe resources are released when processor is garbage-collected
+        try:
+            if hasattr(self, "hands") and self.hands is not None:
+                self.hands.close()
+        except Exception:
+            # Avoid noisy destructor exceptions during Streamlit reruns
+            pass
+
     def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
         # Convert incoming frame to BGR for OpenCV
         frame_bgr = frame.to_ndarray(format="bgr24")
@@ -104,6 +113,21 @@ def init_webrtc_stream(key: str):
         media_stream_constraints={"video": True, "audio": False},
         async_processing=True,
     )
+
+
+def stop_webrtc_stream(webrtc_ctx) -> None:
+    """Safely stop a running WebRTC context if active.
+
+    This helps release the camera and underlying peer connection when users
+    navigate between pages or want to restart the stream.
+    """
+    try:
+        if webrtc_ctx is not None and getattr(webrtc_ctx, "state", None) is not None:
+            if webrtc_ctx.state.playing:
+                webrtc_ctx.stop()
+    except Exception:
+        # Non-fatal: if stopping fails, we simply ignore to avoid crashing the app.
+        pass
 
 
 def get_latest_frame_and_fingertips(webrtc_ctx) -> Tuple[Optional[Dict[str, Tuple[float, float]]], Optional[np.ndarray]]:
