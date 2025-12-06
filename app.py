@@ -1,22 +1,6 @@
 import streamlit as st
 from core import config
 
-# -------- ENV / DEP CHECKS --------
-def _check_opencv_import():
-    try:
-        import cv2  # noqa: F401
-        return None
-    except Exception as e:
-        return str(e)
-
-err = _check_opencv_import()
-if err:
-    st.warning(
-        "OpenCV failed to import. If you're on Ubuntu/Codespaces, run:"
-    )
-    st.code("sudo apt-get update && sudo apt-get install -y libgl1 libglib2.0-0", language="bash")
-    st.caption(f"cv2 import error details: {err}")
-
 # -------- PAGE CONFIG --------
 st.set_page_config(
     page_title="Hand Stability & Tremor Assessment",

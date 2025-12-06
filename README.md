@@ -49,24 +49,6 @@ pip install -r requirements.txt
 python -m streamlit run app.py
 ```
 
-On Ubuntu/Debian, ensure OpenCV runtime libraries are present (required by `cv2` even in headless builds):
-
-```bash
-sudo apt-get update
-sudo apt-get install -y libgl1 libglib2.0-0
-```
-
-If you are using GitHub Codespaces or a dev container, run the apt commands once after the container is created. This resolves native module bootstrapping errors when importing `cv2`.
-## Troubleshooting
-
-- Camera won’t start after revisiting pages:
-	- Use the "Reset Camera" button on Calibration or Live Test to release and reinitialize the WebRTC stream.
-	- Make sure your browser granted camera permission to the app.
-- `ImportError` during `cv2` import:
-	- Install system libs: `sudo apt-get install -y libgl1 libglib2.0-0`
-	- Then verify: `python -c "import cv2; print(cv2.__version__)"`
-
-
 Then open the URL printed in the terminal in your browser.
 
 ### Webcam permissions (browser-based)

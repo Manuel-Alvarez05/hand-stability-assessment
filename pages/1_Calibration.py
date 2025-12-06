@@ -31,13 +31,8 @@ st.divider()
 
 # -----------------------------------
 # Initialize / reuse browser webcam stream (prompts for permission)
-# Support restarting via a session-scoped key counter
 # -----------------------------------
-if "webrtc_key_cal_counter" not in st.session_state:
-    st.session_state["webrtc_key_cal_counter"] = 0
-
-webrtc_key = f"calibration-webrtc-{st.session_state['webrtc_key_cal_counter']}"
-webrtc_ctx = mediapipe_utils.init_webrtc_stream(webrtc_key)
+webrtc_ctx = mediapipe_utils.init_webrtc_stream("calibration-webrtc")
 
 if "calibration_complete" not in st.session_state:
     st.session_state["calibration_complete"] = False
@@ -65,14 +60,6 @@ with col2:
         """
     )
     start_calibration = st.button("▶ Run Calibration")
-    reset_camera = st.button("🔄 Reset Camera")
-
-    if reset_camera:
-        mediapipe_utils.stop_webrtc_stream(webrtc_ctx)
-        st.session_state["webrtc_key_cal_counter"] += 1
-        st.session_state["calibration_complete"] = False
-        st.session_state["baseline_positions"] = {}
-        st.rerun()
 
 
 # -----------------------------------
@@ -153,9 +140,6 @@ if start_calibration:
         st.caption(
             "You can now move on to **Step 2: Live Test** using the navigation menu on the left."
         )
-
-        # Release camera/peer connection after success to avoid lockups on navigation
-        mediapipe_utils.stop_webrtc_stream(webrtc_ctx)
 
 # If calibration was already completed in a prior run, show a friendly reminder
 if st.session_state.get("calibration_complete") and not start_calibration:
