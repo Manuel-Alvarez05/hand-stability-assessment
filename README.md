@@ -29,6 +29,10 @@ Metrics are computed as:
 
 ### Installation / Run Instructions
 
+### Open git bash terminal and run the following commands:
 ```bash
 pip install -r requirements.txt
-streamlit run app.py
+python -m streamlit run app.py
+
+
+### Terminal will provide a local host url, from there open that link in a web browser.
