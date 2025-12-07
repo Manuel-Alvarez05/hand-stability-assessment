@@ -39,10 +39,7 @@ if not baseline_positions:
     )
     st.stop()
 
-# -----------------------------------
-# Initialize / reuse browser webcam stream (prompts for permission)
-# -----------------------------------
-webrtc_ctx = mediapipe_utils.init_webrtc_stream("live-test-webrtc")
+webrtc_ctx = None
 
 # Flag to track whether the test has been run successfully
 if "test_complete" not in st.session_state:
@@ -55,17 +52,20 @@ if "raw_time_series" not in st.session_state:
     }
 
 # -----------------------------------
-# Layout: video + progress on left, controls on right
+# Layout: show the WebRTC streamer and a narrow controls column beside it
 # -----------------------------------
-col1, col2 = st.columns([2, 1])
+col_video, col_controls = st.columns([3, 1])
 
-with col1:
+with col_video:
+    # Initialize / reuse browser webcam stream (prompts for permission)
+    webrtc_ctx = mediapipe_utils.init_webrtc_stream("live-test-webrtc")
+
     st.subheader("Webcam & Tracking View")
     video_placeholder = st.empty()
     status_placeholder = st.empty()
     progress_placeholder = st.empty()
 
-with col2:
+with col_controls:
     st.subheader("Test Control")
     st.markdown(
         f"""
@@ -76,6 +76,15 @@ with col2:
         """
     )
     start_test = st.button("▶ Start Live Test")
+
+    st.divider()
+    st.subheader("Notes & Tips")
+    st.markdown(
+        """
+        - Keep the same hand and position used for calibration.
+        - If the camera isn't streaming, click the camera 'Start' button first.
+        """
+    )
 
 
 # -----------------------------------

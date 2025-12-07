@@ -29,11 +29,6 @@ st.warning(
 
 st.divider()
 
-# -----------------------------------
-# Initialize / reuse browser webcam stream (prompts for permission)
-# -----------------------------------
-webrtc_ctx = mediapipe_utils.init_webrtc_stream("calibration-webrtc")
-
 if "calibration_complete" not in st.session_state:
     st.session_state["calibration_complete"] = False
 
@@ -42,17 +37,20 @@ if "baseline_positions" not in st.session_state:
 
 
 # -----------------------------------
-# Layout: video on left, controls on right
+# Layout: place the WebRTC streamer and the run button side-by-side
 # -----------------------------------
-col1, col2 = st.columns([2, 1])
+col_video, col_controls = st.columns([3, 1])
 
-with col1:
+with col_video:
+    # Initialize / reuse browser webcam stream (prompts for permission)
+    webrtc_ctx = mediapipe_utils.init_webrtc_stream("calibration-webrtc")
+
     st.subheader("Webcam & Hand Preview")
     preview_frame_placeholder = st.empty()
     status_placeholder = st.empty()
 
-with col2:
-    st.subheader("Calibration Control")
+with col_controls:
+    st.subheader("Camera Controls")
     st.markdown(
         f"""
         When you are ready and your hand is steady, click the button below.
@@ -60,6 +58,15 @@ with col2:
         """
     )
     start_calibration = st.button("▶ Run Calibration")
+
+    st.divider()
+    st.subheader("Notes & Tips")
+    st.markdown(
+        """
+        - Ensure good lighting and keep your hand fully visible.
+        - If the camera preview shows no landmarks, adjust distance or orientation.
+        """
+    )
 
 
 # -----------------------------------
