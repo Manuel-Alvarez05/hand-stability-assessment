@@ -15,193 +15,127 @@ st.markdown(
     In this step, we record **{config.TEST_DURATION_SECONDS} seconds** of fingertip motion
     while you hold your hand as steady as possible.
 
-    **Instructions:**
-    - Keep the **same hand and position** you used during calibration.
-    - Extend your **thumb, index, and middle fingers**.
-    - Try to hold your hand as still as you can for the entire test duration.
+    - Keep the same posture you used during calibration.
+    - Try to hold your hand as still as you comfortably can.
     """
 )
 
-st.warning(
-    "This is an educational tool and does **not** provide a clinical diagnosis."
-)
-
-st.divider()
-
-# -----------------------------------
-# Check that calibration has been completed
-# -----------------------------------
-baseline_positions = st.session_state.get("baseline_positions", {})
-
+# Ensure calibration has been completed
+baseline_positions = st.session_state.get("baseline_positions")
 if not baseline_positions:
     st.error(
-        "Baseline positions not found. Please complete **Step 1: Calibration** before running the test."
+        "No baseline positions found. Please complete the calibration step first "
+        "by visiting '1_Calibration' in the sidebar."
     )
     st.stop()
 
-webrtc_ctx = None
+st.session_state.setdefault("test_complete", False)
 
-# Flag to track whether the test has been run successfully
-if "test_complete" not in st.session_state:
-    st.session_state["test_complete"] = False
+# Layout
+preview_col, controls_col = st.columns([2, 1])
 
-# Initialize raw_time_series if not already
-if "raw_time_series" not in st.session_state:
-    st.session_state["raw_time_series"] = {
-        finger: [] for finger in config.FINGERS_TO_TRACK
-    }
-
-# -----------------------------------
-# Layout: show the WebRTC streamer and a narrow controls column beside it
-# -----------------------------------
-col_video, col_controls = st.columns([3, 1])
-
-with col_video:
-    # Initialize / reuse browser webcam stream (prompts for permission)
-    webrtc_ctx = mediapipe_utils.init_webrtc_stream("live-test-webrtc")
-
-    # Top-aligned progress and timer placeholders (above the section title)
-    progress_bar_top = st.empty()
-    timer_top = st.empty()
-    st.subheader("Webcam & Tracking View")
-    video_placeholder = st.empty()
+with preview_col:
+    preview_frame_placeholder = st.empty()
     status_placeholder = st.empty()
 
-with col_controls:
-    st.subheader("Test Control")
-    st.markdown(
-        f"""
-        When you press the button below, we will record **{config.TEST_DURATION_SECONDS} seconds**
-        of fingertip motion.
+with controls_col:
+    st.subheader("Webcam & Test Controls")
 
-        Try to hold your hand as steady as possible during the entire test.
-        """
-    )
-    start_test = st.button("▶ Start Live Test")
+    # Start WebRTC stream (again, must run every rerun with a stable key)
+    webrtc_ctx = mediapipe_utils.init_webrtc_stream("live-test-webrtc")
 
-    st.divider()
-    st.subheader("Notes & Tips")
-    st.markdown(
-        """
-        - Keep the same hand and position used for calibration.
-        - If the camera isn't streaming, click the camera 'Start' button first.
-        """
-    )
-
-
-# -----------------------------------
-# Live preview (single frame per rerun)
-# -----------------------------------
-if not st.session_state.get("test_complete"):
-    fingertips, frame_rgb = mediapipe_utils.get_latest_frame_and_fingertips(webrtc_ctx)
-    if webrtc_ctx and webrtc_ctx.state.playing and frame_rgb is not None:
-        video_placeholder.image(
-            frame_rgb,
-            caption="Live preview (landmarks shown if detected)",
-            channels="RGB",
+    # Debug info
+    st.sidebar.subheader("Debug Info")
+    if webrtc_ctx is not None:
+        st.sidebar.write(f"WebRTC state: {getattr(webrtc_ctx, 'state', 'unknown')}")
+        st.sidebar.write(
+            "Video processor attached: "
+            + ("✅" if getattr(webrtc_ctx, "video_processor", None) is not None else "❌")
         )
-    elif not (webrtc_ctx and webrtc_ctx.state.playing):
-        status_placeholder.info("Waiting for camera permission... Click 'Allow' in your browser.")
     else:
-        status_placeholder.info("Waiting for webcam frame... Ensure your camera is enabled.")
+        st.sidebar.write("No WebRTC context yet.")
 
+    # Preview before the test starts
+    fingertips, frame_rgb = mediapipe_utils.get_latest_frame_and_fingertips(webrtc_ctx)
 
-# -----------------------------------
-# Perform the timed test on button click
-# -----------------------------------
+    if webrtc_ctx and getattr(webrtc_ctx, "state", None) and webrtc_ctx.state.playing and frame_rgb is not None:
+        preview_frame_placeholder.image(frame_rgb, channels="RGB", caption="Live preview")
+        status_placeholder.success("Camera connected. You can start the test when ready.")
+    elif not (webrtc_ctx and getattr(webrtc_ctx, "state", None) and webrtc_ctx.state.playing):
+        status_placeholder.info("Waiting for camera permission... click 'Allow' in your browser.")
+    else:
+        status_placeholder.info("Waiting for webcam frame...")
+
+    st.markdown(
+        f"Live test duration: **{config.TEST_DURATION_SECONDS} seconds**."
+    )
+    start_test = st.button("Start Live Test", type="primary")
+
 if start_test:
-    if not (webrtc_ctx and webrtc_ctx.state.playing):
-        status_placeholder.error("Camera stream is not running. Please allow camera access and try again.")
+    # Ensure the camera is actually playing
+    if not (webrtc_ctx and getattr(webrtc_ctx, "state", None) and webrtc_ctx.state.playing):
+        st.error("Camera is not connected. Please allow camera access and try again.")
         st.stop()
 
-    st.session_state["test_complete"] = False
-    status_placeholder.info("Test in progress... Hold your hand steady.")
+    status_placeholder.info("Recording... Hold your hand steady.")
+    progress_bar = st.progress(0)
+    timer_placeholder = st.empty()
+    live_preview_placeholder = preview_frame_placeholder
 
-    # Reset raw_time_series dict
-    raw_time_series: Dict[str, List[Tuple[float, float, float]]] = {
-        finger: [] for finger in config.FINGERS_TO_TRACK
-    }
+    # Store time series: {finger: [(t, x, y), ...]}
+    raw_time_series: Dict[str, List[Tuple[float, float, float]]] = defaultdict(list)
 
-    start_time = time.time()
+    start_time = time.perf_counter()
     duration = config.TEST_DURATION_SECONDS
 
-    # Capture loop with top progress/timer updates
     while True:
-        elapsed = time.time() - start_time
+        now = time.perf_counter()
+        elapsed = now - start_time
+        remaining = max(0.0, duration - elapsed)
+
         if elapsed >= duration:
             break
 
-        # Update top progress bar and timer
+        # Update UI
         progress = min(1.0, elapsed / duration)
-        try:
-            progress_bar_top.progress(int(progress * 100))
-            timer_top.markdown(f"**Test:** {int(duration - elapsed)}s remaining")
-        except Exception:
-            pass
+        progress_bar.progress(progress)
+        timer_placeholder.text(f"Time remaining: {remaining:0.1f} s")
 
-        # Capture current frame and fingertip positions
-        fingertip_positions, frame_rgb = mediapipe_utils.get_latest_frame_and_fingertips(webrtc_ctx)
+        # Get latest data
+        fingertips, frame_rgb = mediapipe_utils.get_latest_frame_and_fingertips(webrtc_ctx)
 
         if frame_rgb is not None:
-            video_placeholder.image(
-                frame_rgb,
-                caption="Recording in progress... Keep your hand as steady as possible.",
-                channels="RGB",
-            )
+            live_preview_placeholder.image(frame_rgb, channels="RGB", caption="Recording...")
 
-        # Save fingertip positions if detected
-        if fingertip_positions:
-            for finger_name, (x_norm, y_norm) in fingertip_positions.items():
-                if finger_name in config.FINGERS_TO_TRACK:
-                    # Store a tuple (t, x, y) with time relative to test start
-                    raw_time_series[finger_name].append((float(elapsed), float(x_norm), float(y_norm)))
+        if fingertips is not None:
+            t_rel = elapsed
+            for finger_name, (x, y) in fingertips.items():
+                raw_time_series[finger_name].append((t_rel, x, y))
 
-        # Slight delay to approximate ~30 FPS and avoid CPU overload
-        time.sleep(1 / 30.0)
+        time.sleep(0.03)
 
-    # Clear top progress/timer placeholders after capture
-    try:
-        progress_bar_top.empty()
-        timer_top.empty()
-    except Exception:
-        pass
-
-    # Save collected data into session_state
+    # Save results to session state
     st.session_state["raw_time_series"] = raw_time_series
     st.session_state["test_complete"] = True
 
-    status_placeholder.success("Live test complete! Data has been recorded.")
-    # Clear any remaining progress placeholder at top
-    try:
-        progress_bar_top.empty()
-    except Exception:
-        pass
+    status_placeholder.success("Live test complete! Data recorded successfully.")
 
-    st.caption(
-        "You can now proceed to **Step 3: Results & Interpretation** using the navigation menu."
-    )
-    # Automatically navigate to the Results page when the live test finishes
-    try:
-        # Stop the WebRTC stream cleanly before navigating to results to avoid shutdown races
+    # Try to stop WebRTC gracefully
+    if webrtc_ctx and getattr(webrtc_ctx, "state", None) and webrtc_ctx.state.playing:
         try:
-            if webrtc_ctx is not None and hasattr(webrtc_ctx, "stop"):
-                webrtc_ctx.stop()
+            webrtc_ctx.stop()
         except Exception:
             pass
 
-        try:
-            import time
-
-            time.sleep(0.5)
-        except Exception:
-            pass
-
+    # Navigate to results page
+    try:
+        time.sleep(0.5)
         st.switch_page("pages/3_Results.py")
     except AttributeError:
-        # Older Streamlit versions don't provide `switch_page`; show a friendly hint instead
-        st.info("Live test complete. Please open '3_Results' from the sidebar to continue.")
+        # Older Streamlit versions don't provide `switch_page`
+        st.info("Live test complete. Please open '3_Results' from the sidebar to view your results.")
 
-# If the test was already completed earlier and user just visited the page
+# If the test was already completed earlier and the user just visited the page
 if st.session_state.get("test_complete") and not start_test:
     status_placeholder.success("Live test already completed. You may proceed to the Results page.")
     st.caption("If you want to repeat the test, you can run it again by pressing the button.")
