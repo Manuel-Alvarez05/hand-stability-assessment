@@ -101,8 +101,18 @@ def init_webrtc_stream(key: str):
         key=key,
         mode=WebRtcMode.SENDRECV,
         video_processor_factory=MediaPipeHandProcessor,
-        media_stream_constraints={"video": True, "audio": False},
+        media_stream_constraints={
+            "video": {"width": {"min": 640, "ideal": 1280, "max": 1920}},
+            "audio": False
+        },
         async_processing=True,
+        rtc_configuration={"iceServers": [
+            {"urls": ["stun:stun.l.google.com:19302"]},
+            {"urls": ["stun:stun1.l.google.com:19302"]},
+            {"urls": ["stun:stun2.l.google.com:19302"]},
+            {"urls": ["stun:stun3.l.google.com:19302"]},
+            {"urls": ["stun:stun4.l.google.com:19302"]}
+        ]},
     )
 
 

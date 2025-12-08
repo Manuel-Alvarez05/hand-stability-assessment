@@ -4,3 +4,11 @@ backgroundColor = "#FFFFFF"      # main background
 secondaryBackgroundColor = "#F5FFFF"  # cards / panels
 textColor = "#37474F"            # deep gray
 font = "sans serif"
+
+[logger]
+level = "debug"
+
+[client]
+showErrorDetails = true
+
+
